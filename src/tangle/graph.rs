@@ -25,4 +25,7 @@ impl Graph {
         self.blocks.contains_key(id)
     }
 
-    pu
+    pub fn len(&self) -> usize {
+        self.blocks.len()
+    }
+}
