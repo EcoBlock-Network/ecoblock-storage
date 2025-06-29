@@ -3,7 +3,7 @@ use ecoblock_core::TangleBlock;
 
 /// In-memory DAG to store Tangle blocks
 pub struct Graph {
-    blocks: HashMap<String, TangleBlock>,
+    pub(crate) blocks: HashMap<String, TangleBlock>,
 }
 
 impl Graph {
