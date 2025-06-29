@@ -1,6 +1,9 @@
 [package]
-name = "ecoblock_storage"
+name = "ecoblock-storage"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ecoblock_core = { path = "../ecoblock-core" }
+
+serde = { version = "1.0", features = ["derive"] }
