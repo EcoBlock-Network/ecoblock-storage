@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use ecoblock_core::TangleBlock;
+
+use crate::tangle::block::TangleBlock;
 
 /// In-memory DAG to store Tangle blocks
 pub struct Graph {

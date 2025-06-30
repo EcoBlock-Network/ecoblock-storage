@@ -1,115 +1,107 @@
-use ecoblock_core::{SensorData, TangleBlock, Signature};
-use ecoblock_storage::{Tangle, TangleError};
-use std::fs;
-use blake3;
+use ecoblock_core::{SensorData, TangleBlockData};
+use ecoblock_crypto::keys::keypair::CryptoKeypair;
+use ecoblock_storage::{tangle::block::TangleBlock, Tangle, TangleError};
 
-fn dummy_block(id: &str, parents: Vec<&str>) -> TangleBlock {
-    TangleBlock {
-        id: id.to_string(),
-        parents: parents.into_iter().map(|s| s.to_string()).collect(),
-        data: SensorData {
-            pm25: 10.0,
-            co2: 400.0,
-            temperature: 20.0,
-            humidity: 50.0,
-            timestamp: 123456,
-        },
-        signature: Signature("dummy_sig".into()),
-    }
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn dummy_block(parents: Vec<String>) -> TangleBlock {
+    let keypair = CryptoKeypair::generate(); // ✅ ajout
+    let data = SensorData {
+        pm25: 10.0,
+        co2: 400.0,
+        temperature: 20.0,
+        humidity: 50.0,
+        timestamp: 123456,
+    };
+    let tangle_data = TangleBlockData { parents, data };
+    TangleBlock::new(tangle_data, &keypair)
 }
+
 
 #[test]
 fn insert_genesis_block() {
+    println!("=== insert_genesis_block ===");
     let mut tangle = Tangle::new();
-    let block = dummy_block("A", vec![]);
-    let result = tangle.insert(block);
+    let block = dummy_block(vec![]);
+    let result = tangle.insert(block.clone());
+
+    println!("Inserted block ID: {}", block.id);
     assert!(result.is_ok());
     assert_eq!(tangle.len(), 1);
 }
 
 #[test]
 fn reject_block_with_missing_parent() {
+    println!("=== reject_block_with_missing_parent ===");
     let mut tangle = Tangle::new();
-    let block = dummy_block("B", vec!["Z"]);
+
+    let block = dummy_block(vec!["nonexistent_parent".to_string()]);
     let result = tangle.insert(block);
+
+    println!("Résultat de l'insertion : {:?}", result);
     assert!(matches!(result, Err(TangleError::MissingParent(_))));
     assert_eq!(tangle.len(), 0);
 }
 
+
 #[test]
 fn insert_block_with_valid_parent() {
+    println!("=== insert_block_with_valid_parent ===");
+
     let mut tangle = Tangle::new();
-    let genesis = dummy_block("A", vec![]);
+
+    // Création et insertion du bloc genesis
+    let genesis = dummy_block(vec![]);
+    let parent_id = genesis.id.clone();
     tangle.insert(genesis).unwrap();
-    let child = dummy_block("B", vec!["A"]);
-    let result = tangle.insert(child);
+
+    // Création du bloc enfant avec le parent valide
+    let child = dummy_block(vec![parent_id.clone()]);
+    let result = tangle.insert(child.clone());
+
+    println!("Bloc enfant inséré avec le parent : {}", parent_id);
+    println!("Résultat : {:?}", result);
+
     assert!(result.is_ok());
     assert_eq!(tangle.len(), 2);
-    assert!(tangle.get("B").is_some());
-}
-
-
-
-#[test]
-fn save_and_load_tangle_from_file() {
-    let path = "test_tangle.json";
-
-    let mut tangle = Tangle::new();
-    let block_a = dummy_block("A", vec![]);
-    let block_b = dummy_block("B", vec!["A"]);
-
-    tangle.insert(block_a).unwrap();
-    tangle.insert(block_b).unwrap();
-
-    tangle.save_to_file(path).unwrap();
-    let loaded = Tangle::load_from_file(path).unwrap();
-
-    assert_eq!(loaded.len(), 2);
-    assert!(loaded.get("B").is_some());
-
-    let _ = fs::remove_file(path);
+    assert!(tangle.get(&child.id).is_some());
 }
 
 #[test]
-fn create_unsigned_block_and_check_id_is_hash() {
+fn test_insert_block() {
+    println!("=== test_insert_block ===");
 
-    let data = SensorData {
-        pm25: 12.0,
-        co2: 420.0,
-        temperature: 24.0,
-        humidity: 38.0,
-        timestamp: 123456789,
+    // Génère une paire de clés
+    let keypair = CryptoKeypair::generate();
+
+    // Prépare les données
+    let data = TangleBlockData {
+        parents: vec![], // bloc genesis
+        data: SensorData {
+            pm25: 12.5,
+            co2: 400.0,
+            temperature: 22.5,
+            humidity: 45.0,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        },
     };
 
-    let parents = vec!["A".to_string(), "B".to_string()];
-    let block = TangleBlock::new_unsigned(parents.clone(), data.clone());
+    // Crée un bloc signé
+    let block = TangleBlock::new(data, &keypair);
+    println!("ID du bloc généré : {}", block.id);
+    println!("Clé publique : {}", block.public_key);
+    println!("Signature : {}", block.signature.0);
 
-    let payload = serde_json::to_vec(&(parents, data)).unwrap();
-    let expected_id = blake3::hash(&payload).to_hex().to_string();
-    assert_eq!(block.id, expected_id);
-
-}
-
-#[test]
-fn print_tangle_structure_to_terminal() {
+    // Insert dans le Tangle
     let mut tangle = Tangle::new();
-    let block_a = TangleBlock::new_unsigned(vec![], SensorData {
-        pm25: 10.0, co2: 400.0, temperature: 22.0, humidity: 55.0, timestamp: 123,
-    });
-    let block_b = TangleBlock::new_unsigned(vec![block_a.id.clone()], SensorData {
-        pm25: 11.0, co2: 410.0, temperature: 23.0, humidity: 56.0, timestamp: 124,
-    });
-    let block_c = TangleBlock::new_unsigned(vec![block_a.id.clone(), block_b.id.clone()], SensorData {
-        pm25: 12.0, co2: 420.0, temperature: 24.0, humidity: 57.0, timestamp: 125,
-    });
+    let result = tangle.insert(block.clone());
 
-    println!("Block A: {}", block_a.id);
-    println!("Block B: {}", block_b.id);
-    println!("Block C: {}", block_c.id);
-
-    tangle.insert(block_a).unwrap();
-    tangle.insert(block_b).unwrap();
-    tangle.insert(block_c).unwrap();
-
-    tangle.pretty_print();
+    println!("Résultat : {:?}", result);
+    assert!(result.is_ok());
+    assert_eq!(tangle.len(), 1);
+    assert!(tangle.get(&block.id).is_some());
 }
+

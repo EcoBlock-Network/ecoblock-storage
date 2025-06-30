@@ -2,7 +2,8 @@ use std::fs;
 use std::path::Path;
 use serde_json;
 
-use ecoblock_core::TangleBlock;
+use crate::tangle::block::TangleBlock;
+
 use super::graph::Graph;
 
 pub struct Tangle {
