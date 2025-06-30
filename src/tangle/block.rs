@@ -1,8 +1,9 @@
 use ecoblock_core::domain::tangle_data::TangleBlockData;
 use ecoblock_crypto::keys::keypair::CryptoKeypair;
-use ecoblock_core::{Signature, Signable};
+use ecoblock_crypto::signature::Signature;
 use base64ct::{Base64, Encoding};
 use serde::{Deserialize, Serialize};
+use ecoblock_core::Signable;
 use blake3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,19 +17,21 @@ pub struct TangleBlock {
 
 impl TangleBlock {
     pub fn new(data: TangleBlockData, keypair: &CryptoKeypair) -> Self {
+        let parents = data.parents.clone();
+    
         let payload = data.payload();
         let id = blake3::hash(&payload).to_hex().to_string();
-
-        let signature_raw = keypair.sign(&payload);
-        let signature = Signature(Base64::encode_string(signature_raw.to_bytes().as_ref()));
-        let public_key = Base64::encode_string(keypair.public_key().as_bytes());
-
+    
+        let signature = keypair.sign(&payload);
+        let public_key = Base64::encode_string(&keypair.public_key().to_bytes());
+    
         Self {
             id,
-            parents: data.parents.clone(),
+            parents,
             data,
             signature,
             public_key,
         }
     }
+    
 }
