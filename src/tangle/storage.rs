@@ -4,8 +4,6 @@ use std::path::Path;
 use ecoblock_core::Signable;
 use serde_json;
 use crate::tangle::block::TangleBlock;
-use ecoblock_crypto::signature::Signature;
-use hex;
 
 use super::graph::Graph;
 
